@@ -23,6 +23,8 @@ import {
 } from "../ui/sidebar";
 import { useState } from "react";
 import { cn } from "../lib/utils"
+import { NAVIGATION_PATH } from "../const/navigation";
+import { Link } from "react-router-dom";
 
 const mainItems = [
     { title: "Trend", url: "#", icon: Star },
@@ -53,12 +55,11 @@ const feedItems = [
 ];
 
 const favoriteItems = [
-    { title: "React", url: "#", icon: Heart },
+    { title: "Next.js", url: NAVIGATION_PATH.FAVORITE, category_id: 1, icon: Heart },
+    { title: "React", url: NAVIGATION_PATH.FAVORITE, category_id: 2, icon: Heart },
     { title: "Go", url: "#", icon: Heart },
-    { title: "Next.js", url: "#", icon: Heart },
     { title: "Node.js", url: "#", icon: Heart },
     { title: "TypeScript", url: "#", icon: Heart },
-    
 ];
 
 export function AppSidebar() {
@@ -145,12 +146,14 @@ export function AppSidebar() {
                         <SidebarMenu>
                             {favoriteItems.map((item) => (
                                 <SidebarMenuItem key={item.title}>
-                                    <SidebarMenuButton
-                                        isActive={item.title === "Trend"}
-                                    >
-                                        <item.icon className="text-red-500 fill-red-500" />
-                                        {state !== "collapsed" && <span>{item.title}</span>}
-                                    </SidebarMenuButton>
+                                    <Link to={`${item.url}/${item.category_id}`}>
+                                        <SidebarMenuButton
+                                            isActive={item.title === "Trend"}
+                                        >
+                                            <item.icon className="text-red-500 fill-red-500" />
+                                            {state !== "collapsed" && <span>{item.title}</span>}
+                                        </SidebarMenuButton>
+                                    </Link>
                                 </SidebarMenuItem>
                             ))}
                         </SidebarMenu>

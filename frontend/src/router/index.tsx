@@ -1,13 +1,15 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom"
-import { NAVIGATION_LIST } from "../shared/const/navigation"
-import { AllListPage } from "../pages/AllListPage"
+import { BrowserRouter } from "react-router-dom"
+import { AuthRouter } from "../features/auth/router/AuthRouter"
+import { ArticleRouter } from "../features/article/router/ArticleRouter"
+import { AuthProvider } from "../features/auth/contexts/AuthContext"
 
 export const Router = () => {
     return (
         <BrowserRouter>
-            <Routes>
-                <Route path={NAVIGATION_LIST.TOP} element={<AllListPage />} />
-            </Routes>
+            <AuthProvider>
+                <AuthRouter />
+                <ArticleRouter />
+            </AuthProvider>
         </BrowserRouter>
     )
 }
