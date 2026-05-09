@@ -1,0 +1,16 @@
+version: "3.9"
+
+services:
+  batch:
+    build:
+      context: .
+      dockerfile: docker/node/Dockerfile
+    volumes:
+    # ホストでの変更がコンテナに即時反映
+      - ./node:/app
+    # ホスト側のenvをコンテナの/envにマウント(backendディレクトリ直下の.envファイルを連携)
+      - ./.env:/env/.env
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env

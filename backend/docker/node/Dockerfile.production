@@ -1,0 +1,25 @@
+# ---------- Build Stage ----------
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+COPY node/package*.json ./
+
+RUN npm ci
+
+COPY node/ .
+
+RUN npm run build
+
+
+# ---------- Production Stage ----------
+FROM node:20-alpine
+
+WORKDIR /app
+
+COPY node/package*.json ./
+RUN npm ci --omit=dev
+
+COPY --from=builder /app/dist ./dist
+
+CMD ["node", "dist/index.js"]

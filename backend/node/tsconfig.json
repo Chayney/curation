@@ -1,0 +1,23 @@
+{
+    "compilerOptions": {
+        "target": "ESNext",
+        "module": "CommonJS",
+        "strict": true,
+        "esModuleInterop": true,
+        "types": [
+            "node"
+        ],
+        "emitDecoratorMetadata": true,
+        "experimentalDecorators": true,
+        "rootDir": "./src",
+        "outDir": "./dist",
+    },
+    // コンパイル対象
+    "include": [
+        "src/**/*.ts"
+    ],
+    // コンパイル対象外
+    "exclude": [
+        "node_modules"
+    ]
+}
