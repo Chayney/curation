@@ -152,7 +152,7 @@
     background-color: #fff;
     border: 1px solid #e5e7eb;
     box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1),
-                0 4px 6px -4px rgba(0, 0, 0, 0.1);
+        0 4px 6px -4px rgba(0, 0, 0, 0.1);
     border-radius: 12px;
     padding: 8px;
     display: flex;
@@ -179,20 +179,13 @@
     box-shadow: 0 6px 18px rgba(0, 0, 0, 0.06);
 }
 
-.bookmark {
-    cursor: pointer;
-}
-
-.bookmarkActive {
-    stroke: #f7931e;
-    fill: #f7931e;
-}
-
 .heart {
     cursor: pointer;
+    stroke: #999;
+    transition: 0.2s;
 }
 
-.heartActive {
+.active {
     stroke: #ef4444;
     fill: #ef4444;
 }

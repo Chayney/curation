@@ -3,9 +3,7 @@ import {
     Star,
     Newspaper,
     Bookmark,
-    Sheet,
     Rss,
-    Search,
     Heart,
     ChevronRight
 } from "lucide-react";
@@ -27,12 +25,9 @@ import { NAVIGATION_PATH } from "../const/navigation";
 import { Link } from "react-router-dom";
 
 const mainItems = [
-    { title: "Trend", url: "#", icon: Star },
-    { title: "Site", url: "#", icon: Newspaper },
-    { title: "Company", url: "#", icon: Sheet },
-    { title: "Bookmarks", url: "#", icon: Bookmark },
-    { title: "Feeds", url: "#", icon: Rss },
-    { title: "Search", url: "#", icon: Search }
+    { title: "Feeds", url: NAVIGATION_PATH.FEED, icon: Rss },
+    { title: "Trend", url: NAVIGATION_PATH.TREND, icon: Star },
+    { title: "Bookmarks", url: NAVIGATION_PATH.BOOKMARK, icon: Bookmark }
 ];
 
 const feedItems = [
@@ -57,9 +52,9 @@ const feedItems = [
 const favoriteItems = [
     { title: "Next.js", url: NAVIGATION_PATH.FAVORITE, category_id: 1, icon: Heart },
     { title: "React", url: NAVIGATION_PATH.FAVORITE, category_id: 2, icon: Heart },
-    { title: "Go", url: "#", icon: Heart },
-    { title: "Node.js", url: "#", icon: Heart },
-    { title: "TypeScript", url: "#", icon: Heart },
+    { title: "TypeScript", url: NAVIGATION_PATH.FAVORITE, category_id: 3, icon: Heart },
+    { title: "GCP", url: NAVIGATION_PATH.FAVORITE, category_id: 4, icon: Heart },
+    { title: "AWS", url: NAVIGATION_PATH.FAVORITE, category_id: 5, icon: Heart },
 ];
 
 export function AppSidebar() {
@@ -82,12 +77,14 @@ export function AppSidebar() {
                         <SidebarMenu>
                             {mainItems.map((item) => (
                                 <SidebarMenuItem key={item.title}>
-                                    <SidebarMenuButton
-                                        isActive={item.title === "Trend"}
-                                    >
-                                        <item.icon />
-                                        {state !== "collapsed" && <span>{item.title}</span>}
-                                    </SidebarMenuButton>
+                                    <Link to={`${item.url}`}>
+                                        <SidebarMenuButton
+                                            isActive={item.title === "Trend"}
+                                        >
+                                            <item.icon />
+                                            {state !== "collapsed" && <span>{item.title}</span>}
+                                        </SidebarMenuButton>
+                                    </Link>
                                 </SidebarMenuItem>
                             ))}
                         </SidebarMenu>

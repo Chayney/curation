@@ -1,14 +1,13 @@
 import { useEffect, useState } from "react";
-import type { Category, Article } from "../../types/article";
+import type { Category, Article, ArticleTagRow, ArticleWithTags } from "../../types/article";
 import Layout from "../../../../shared/layout/layout";
 import styles from "./style.module.css";
 import { Input } from "../../../../shared/ui/input";
-import { Bookmark, BookOpen, Heart, Home, Loader2 } from "lucide-react";
+import { Bookmark, BookOpen, Heart, Loader2 } from "lucide-react";
 import { Button } from "../../../../shared/ui/button";
 import { supabase } from "../../../../shared/lib/supabaseClient";
 import { useNavigate } from "react-router-dom";
 import { NAVIGATION_LIST } from "../../../../shared/const/navigation";
-import type { PostgrestError } from "@supabase/supabase-js";
 import { useAuthContext } from "../../../auth/hooks/useAuthContext";
 
 export const ArticleTemplate = () => {
@@ -24,7 +23,49 @@ export const ArticleTemplate = () => {
         isAuth
     } = useAuthContext();
 
-    const [articles, setArticles] = useState<Article[]>([]);
+    const handleLogout = async () => {
+        await supabase.auth.signOut();
+        navigate(NAVIGATION_LIST.LOGIN);
+    }
+
+    const [articles, setArticles] = useState<ArticleWithTags[]>([]);
+    const [bookmarkArticleMap, setBookmarkArticleMap] = useState<Record<number, boolean>>({});
+    
+    const toggleBookmark = async (articleId: number) => {
+        if (!profileId) return;
+        const isBookmark = bookmarkArticleMap[articleId];
+        if (isBookmark) {
+            const { error } = await supabase
+                .from("bookmarks")
+                .delete()
+                .eq("profile_id", profileId)
+                .eq("article_id", articleId);
+            if (error) {
+                console.error(error);
+                return;
+            }
+            setBookmarkArticleMap((prev) => ({
+                ...prev,
+                [articleId]: false
+            }));
+        } else {
+            const { error } = await supabase
+                .from("bookmarks")
+                .insert({
+                    profile_id: profileId,
+                    article_id: articleId
+                });
+            if (error) {
+                console.error(error);
+                return;
+            }
+            setBookmarkArticleMap((prev) => ({
+                ...prev,
+                [articleId]: true
+            }));  
+        }
+    };
+
     // 記事ごとのお気に入り機能
     // ハートの色切り替えに使用
     // stateが1つだけだと全記事が同じ状態になるため1記事=1状態
@@ -76,11 +117,6 @@ export const ArticleTemplate = () => {
         } 
     };
 
-    const handleLogout = async () => {
-        await supabase.auth.signOut();
-        navigate(NAVIGATION_LIST.LOGIN);
-    }
-
     // 今開いているドロップダウン記事ID
     // nullは全て閉じている状態
     const [openArticleId, setOpenArticleId] = useState<number | null>(null);
@@ -117,31 +153,56 @@ export const ArticleTemplate = () => {
     // バッチ処理でDBに記事を保存する形を取る
     useEffect(() => {
         const fetchData = async () => {
-            const { data, error }: {
-                data: Article[] | null;
-                error: PostgrestError | null;
-            } = await supabase
+            const { data: articles } = await supabase
                 .from("articles")
                 .select(`
                     id,
                     title,
                     url,
+                    thumbnail_url,
                     likes_count,
                     created_at,
-                    updated_at,
-                    article_tags (
-                        tags (
-                            name
-                        )
+                    updated_at
+                `)
+            const { data: articleTags } = await supabase
+                .from("article_tags")
+                .select(`
+                    article_id,
+                    tags (
+                        name
                     )
                 `);
-            if (error) {
-                console.error(error);
-                return;
-            }   
-            setArticles(data ?? []);
+            const safeArticles: Article[] = articles ?? [];
+            const safeTags: ArticleTagRow[] = articleTags ?? [];
+                    
+            // =========================
+            // ④ tagMap作成（O(1)アクセス）
+            // =========================
+            const tagMap = new Map<number, string[]>();
+
+            safeTags.forEach(at => {
+                if (!at.tags) return;
+
+                const tagsArray = Array.isArray(at.tags)
+                    ? at.tags
+                    : [at.tags];
+
+                const names = tagsArray.map(t => t.name);
+
+                tagMap.set(Number(at.article_id), names);
+            });
+
+            // =========================
+            // ⑤ merge
+            // =========================
+            const merged: ArticleWithTags[] = safeArticles.map(article => ({
+                ...article,
+                tags: tagMap.get(article.id) ?? []
+            }));
+            setArticles(merged);
         }
         fetchData();
+        console.log(articles)
     }, []);
 
     // お気に入り記事を取得
@@ -177,7 +238,7 @@ export const ArticleTemplate = () => {
             <Layout />
             <main className={styles.main}>
                 <div className={styles.topContainer}>
-                    <h2 className={styles.heading}>Qiita Articles</h2>
+                    <h2 className={styles.heading}>Feeds</h2>
                     <div className={styles.searchContainer}>
                         <Input
                             type="text"
@@ -200,8 +261,8 @@ export const ArticleTemplate = () => {
                                 <div key={article.id} className={styles.card}>
                                     <div className={styles.cardHeader}>
                                         <div className={styles.left}>
-                                            <Home size={30} />
-                                            <span>テスト</span>
+                                            <span className={styles.count}>{article.likes_count}</span>
+                                            <span className={styles.label}>likes</span>
                                         </div>
                                         <div className={styles.right}>
                                             <a
@@ -211,13 +272,11 @@ export const ArticleTemplate = () => {
                                             >
                                                 <BookOpen size={30} />
                                             </a>
-                                            <a
-                                                href="/share"
-                                                rel="noreferrer"
-                                                className={styles.icon}
-                                            >
-                                                <Bookmark size={30} />
-                                            </a>
+                                            <Bookmark
+                                                size={30}
+                                                onClick={() => toggleBookmark(article.id)}
+                                                className={bookmarkArticleMap[article.id] ? styles.bookmarkActive : styles.bookmark}
+                                            />
                                             <div className="relative">
                                                 <Heart
                                                     size={24}
@@ -231,7 +290,7 @@ export const ArticleTemplate = () => {
                                                         );
                                                     }}
                                                     // お気に入り済みであれば赤に変更
-                                                    className={favoriteArticleMap[article.id] ? styles.active : ""}
+                                                    className={favoriteArticleMap[article.id] ? styles.heartActive : styles.heart}
                                                 />
                                                 {openArticleId === article.id && (
                                                     <div
@@ -262,7 +321,7 @@ export const ArticleTemplate = () => {
                                     <div className={styles.cardBody}>
                                         <div className={styles.avatarHeader}>
                                             <img
-                                                src={`https://picsum.photos/800/600`}
+                                                src={article.thumbnail_url}
                                                 alt=""
                                                 className={styles.avatar}
                                             />
@@ -275,13 +334,11 @@ export const ArticleTemplate = () => {
                                                 <span>🕒 {new Date(article.updated_at).toLocaleDateString()}</span>
                                             </div>
                                             <div className={styles.tags}>
-                                                {article.article_tags
-                                                    .filter((item) => item.tags)
-                                                    .map((item, i) => (
-                                                        <span key={i} className={styles.tag}>
-                                                            {item.tags!.name}
-                                                        </span>
-                                                    ))}
+                                                {article.tags.map((tag, i) => (
+                                                    <span key={i} className={styles.tag}>
+                                                        {tag}
+                                                    </span>
+                                                ))}
                                             </div>
                                         </div>
                                     </div>
