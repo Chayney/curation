@@ -5,6 +5,7 @@ export type Tag = {
 export type Article = {
     title: string;
     url: string;
+    thumbnail_url?: string | null;
     likes_count?: number;
     tags: Tag[];
 };
@@ -16,6 +17,7 @@ export type QiitaTag = {
 export type QiitaArticle = {
     title: string;
     url: string;
+    thumbnail_url?: string | null;
     likes_count: number;
     tags: QiitaTag[];
 };
