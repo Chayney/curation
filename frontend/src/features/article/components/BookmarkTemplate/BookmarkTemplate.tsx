@@ -230,7 +230,7 @@ export const BookmarkTemplate = () => {
             <Layout />
             <main className={styles.main}>
                 <div className={styles.topContainer}>
-                    <h2 className={styles.heading}>Feeds</h2>
+                    <h2 className={styles.heading}>Bookmarks</h2>
                     <div className={styles.searchContainer}>
                         <Input
                             type="text"
