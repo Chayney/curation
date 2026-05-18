@@ -150,6 +150,7 @@ export const BookmarkTemplate = () => {
         };
     }, []);
 
+    const [keyword, setKeyword] = useState("")
     // ブックマーク記事を取得
     useEffect(() => {
         const fetchBookmarks = async () => {
@@ -176,54 +177,29 @@ export const BookmarkTemplate = () => {
                     created_at,
                     updated_at
                 `)
-                    .in("id", articleIds);
+                    .in("id", articleIds)
+                    .ilike("title", `%${keyword}%`);
             const articleMap = new Map<number, Articles>();
             articles?.forEach(a => {
                 articleMap.set(a.id, a);
             });
             const newMap: Record<number, boolean> = {};
-            const merged = bookmarkData.map(item => {
-                const key = item.article_id;
-                newMap[key] = true;
-                return {
-                    ...item,
-                    articles: articleMap.get(item.article_id) ?? null
-                };
-            });
+            const merged = bookmarkData
+                .filter(item => articleMap.has(item.article_id))
+                .map(item => {
+                    const key = item.article_id;
+                    newMap[key] = true;
+                    return {
+                        ...item,
+                        articles: articleMap.get(item.article_id)!
+                    };
+                });
 
             setBookmarkArticleMap(newMap);
             setBookmarkArticles(merged);
         };
         fetchBookmarks();
-    }, [profileId]);
-
-    // お気に入り記事を取得
-    // useEffect(() => {
-    //     const fetchFavorites = async () => {
-    //         if (!profileId) return;
-    //         const { data, error } = await supabase
-    //             .from("favorites")
-    //             .select("article_id, category_id")
-    //             .eq("profile_id", profileId);
-    //         if (error) return;
-
-    //         // 記事単位のお気に入り
-    //         const articleMap: Record<number, boolean> = {};
-    //         data.forEach((fav) => {
-    //             articleMap[fav.article_id] = true;
-    //         });
-    //         setFavoriteArticleMap(articleMap);
-
-    //         // カテゴリー単位のお気に入り
-    //         const categoryMap: Record<string, boolean> = {};
-    //         data.forEach((fav) => {
-    //             const key = `${fav.article_id}-${fav.category_id}`;
-    //             categoryMap[key] = true;
-    //         });
-    //         setFavoriteCategoryMap(categoryMap);
-    //     };
-    //     fetchFavorites();
-    // }, [profileId]);
+    }, [profileId, keyword]);
 
     return (
         <div className={styles.wrapper}>
@@ -236,6 +212,11 @@ export const BookmarkTemplate = () => {
                             type="text"
                             placeholder="Search"
                             inputSize="md"
+                            onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                    setKeyword(e.currentTarget.value);
+                                }
+                            }}
                         />
                         <Button variant="secondary" onClick={handleLogout}>ログアウト</Button>
                     </div>
@@ -288,7 +269,7 @@ export const BookmarkTemplate = () => {
                                                         );
                                                     }}
                                                     // お気に入り済みであれば赤に変更
-                                                    className={article.id ? styles.heartActive : styles.heart}
+                                                    className={bookmarkArticleMap[article.id] ? styles.heartActive : styles.heart}
                                                 />
                                                 {openArticleId === article.id && (
                                                     <div

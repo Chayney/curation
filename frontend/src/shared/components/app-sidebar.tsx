@@ -36,16 +36,74 @@ const feedItems = [
         icon: Newspaper
     },
     {
-        title: "React",
-        children: ["Qiita", "Zenn"]
+        title: "Next.js",
+        category_id: 1,
+        children: [
+            {
+                title: "Qiita",
+                service: "qiita"
+            },
+            {
+                title: "Zenn",
+                service: "zenn"
+            }
+        ]
     },
     {
-        title: "Docker",
-        children: ["Qiita", "Zenn"]
+        title: "React",
+        category_id: 2,
+        children: [
+            {
+                title: "Qiita",
+                service: "qiita"
+            },
+            {
+                title: "Zenn",
+                service: "zenn"
+            }
+        ]
+    },
+    {
+        title: "TypeScript",
+        category_id: 3,
+        children: [
+            {
+                title: "Qiita",
+                service: "qiita"
+            },
+            {
+                title: "Zenn",
+                service: "zenn"
+            }
+        ]
     },
     {
         title: "GCP",
-        children: ["Qiita", "Zenn"]
+        category_id: 4,
+        children: [
+            {
+                title: "Qiita",
+                service: "qiita"
+            },
+            {
+                title: "Zenn",
+                service: "zenn"
+            }
+        ]
+    },
+    {
+        title: "AWS",
+        category_id: 5,
+        children: [
+            {
+                title: "Qiita",
+                service: "qiita"
+            },
+            {
+                title: "Zenn",
+                service: "zenn"
+            }
+        ]
     }
 ];
 
@@ -95,8 +153,8 @@ export function AppSidebar() {
                     <SidebarGroupContent>
                         <SidebarMenuSub className="ml-0 border-l-0 pl-0">
                             {feedItems.map((item) => {
-                                const hasChildren = !!item.children
-                                const isOpen = openMap[item.title]
+                                const hasChildren = !!item.children;
+                                const isOpen = openMap[item.title];
 
                                 return (
                                     <SidebarMenuItem key={item.title}>
@@ -107,6 +165,7 @@ export function AppSidebar() {
                                         >
                                             <div className="flex items-center gap-2">
                                                 {item.icon && <item.icon className="h-4 w-4" />}
+
                                                 {hasChildren && (
                                                     <ChevronRight
                                                         className={cn(
@@ -115,6 +174,7 @@ export function AppSidebar() {
                                                         )}
                                                     />
                                                 )}
+
                                                 <span>{item.title}</span>
                                             </div>
                                         </SidebarMenuButton>
@@ -122,17 +182,21 @@ export function AppSidebar() {
                                         {/* 子 */}
                                         {hasChildren && isOpen && (
                                             <div className="ml-4">
-                                                {item.children!.map((child) => (
-                                                    <SidebarMenuItem key={child}>
-                                                        <SidebarMenuButton>
-                                                            <span>{child}</span>
+                                                {item.children.map((child) => (
+                                                    <SidebarMenuItem key={child.title}>
+                                                        <SidebarMenuButton asChild>
+                                                            <Link
+                                                                to={`/tag/${item.category_id}/${child.service}`}
+                                                            >
+                                                                <span>{child.title}</span>
+                                                            </Link>
                                                         </SidebarMenuButton>
                                                     </SidebarMenuItem>
                                                 ))}
                                             </div>
                                         )}
                                     </SidebarMenuItem>
-                                )
+                                );
                             })}
                         </SidebarMenuSub>
                     </SidebarGroupContent>

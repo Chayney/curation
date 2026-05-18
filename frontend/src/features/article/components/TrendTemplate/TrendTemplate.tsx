@@ -113,7 +113,7 @@ export const TrendTemplate = () => {
         };
     }, []);
 
-    // バッチ処理でDBに記事を保存する形を取る
+    const [keyword, setKeyword] = useState("")
     useEffect(() => {
         const fetchData = async () => {
             const { data: articles } = await supabase
@@ -127,7 +127,8 @@ export const TrendTemplate = () => {
                     created_at,
                     updated_at
                 `)
-                .order("likes_count", { ascending: false });
+                .order("likes_count", { ascending: false })
+                .ilike("title", `%${keyword}%`);
             const { data: articleTags } = await supabase
                 .from("article_tags")
                 .select(`
@@ -166,7 +167,7 @@ export const TrendTemplate = () => {
             setArticles(merged);
         }
         fetchData();
-    }, []);
+    }, [keyword]);
 
     // お気に入り記事を取得
     useEffect(() => {
@@ -207,6 +208,11 @@ export const TrendTemplate = () => {
                             type="text"
                             placeholder="Search"
                             inputSize="md"
+                            onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                    setKeyword(e.currentTarget.value);
+                                }
+                            }}
                         />
                         <Button variant="secondary" onClick={handleLogout}>ログアウト</Button>
                     </div>

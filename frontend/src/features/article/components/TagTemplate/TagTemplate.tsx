@@ -1,18 +1,20 @@
 import { useEffect, useState } from "react";
-import type { Category, Article, ArticleTagRow, ArticleWithTags } from "../../types/article";
+import type { Articles, ArticleTags, Category, TagArticleWithRelations, Tags } from "../../types/article";
 import Layout from "../../../../shared/layout/layout";
 import styles from "./style.module.css";
 import { Input } from "../../../../shared/ui/input";
 import { Bookmark, BookOpen, Heart, Loader2 } from "lucide-react";
 import { Button } from "../../../../shared/ui/button";
 import { supabase } from "../../../../shared/lib/supabaseClient";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { NAVIGATION_LIST } from "../../../../shared/const/navigation";
 import { useAuthContext } from "../../../auth/hooks/useAuthContext";
 
-export const ArticleTemplate = () => {
+export const TagTemplate = () => {
     const navigate = useNavigate();
-
+    const { id, service } = useParams();
+    const categoryId = Number(id);
+    
     // ログインユーザーのIDを取得
     const {
         // ログインユーザーID
@@ -28,48 +30,9 @@ export const ArticleTemplate = () => {
         navigate(NAVIGATION_LIST.LOGIN);
     }
 
-    const [articles, setArticles] = useState<ArticleWithTags[]>([]);
-    const [bookmarkArticleMap, setBookmarkArticleMap] = useState<Record<number, boolean>>({});
-    
-    const toggleBookmark = async (articleId: number) => {
-        if (!profileId) return;
-        const isBookmark = bookmarkArticleMap[articleId];
-        if (isBookmark) {
-            const { error } = await supabase
-                .from("bookmarks")
-                .delete()
-                .eq("profile_id", profileId)
-                .eq("article_id", articleId);
-            if (error) {
-                console.error(error);
-                return;
-            }
-            setBookmarkArticleMap((prev) => ({
-                ...prev,
-                [articleId]: false
-            }));
-        } else {
-            const { error } = await supabase
-                .from("bookmarks")
-                .insert({
-                    profile_id: profileId,
-                    article_id: articleId
-                });
-            if (error) {
-                console.error(error);
-                return;
-            }
-            setBookmarkArticleMap((prev) => ({
-                ...prev,
-                [articleId]: true
-            }));  
-        }
-    };
-
-    // 記事ごとのお気に入り機能
-    // ハートの色切り替えに使用
-    // stateが1つだけだと全記事が同じ状態になるため1記事=1状態
-    const [favoriteArticleMap, setFavoriteArticleMap] = useState<Record<number, boolean>>({});
+    const [tagArticles, setTagArticles] = useState<
+        TagArticleWithRelations[]
+    >([]);
 
     // カテゴリーごとのお気に入り機能
     // SAVE文字の切り替えに使用
@@ -110,11 +73,7 @@ export const ArticleTemplate = () => {
                 ...prev,
                 [key]: true
             }));
-            setFavoriteArticleMap(prev => ({
-                ...prev,
-                [articleId]: true
-            }));
-        } 
+        }
     };
 
     // 今開いているドロップダウン記事ID
@@ -150,100 +109,142 @@ export const ArticleTemplate = () => {
         };
     }, []);
 
-    // バッチ処理でDBに記事を保存する形を取る
+    // 選択したカテゴリー名を抽出
+    const categoryName = categories.find(category => category.id === categoryId)?.name ?? '';
+
+    const [keyword, setKeyword] = useState("")
+    // お気に入り記事の取得
     useEffect(() => {
         const fetchData = async () => {
-            const { data: articles } = await supabase
-                .from("articles")
-                .select(`
-                    id,
-                    title,
-                    url,
-                    thumbnail_url,
-                    likes_count,
-                    created_at,
-                    updated_at
-                `)
-            const { data: articleTags } = await supabase
+            if (!categoryId || !profileId) return;
+
+            // 1. category取得
+            const { data: category }: {
+                data: Category | null;
+            } = await supabase
+                .from("categories")
+                .select("id, name")
+                .eq("id", categoryId)
+                .single();
+
+            if (!category) return;
+
+            // 2. tags取得
+            const { data: tags }: {
+                data: Tags[] | null;
+            } = await supabase
+                .from("tags")
+                .select("id, name");
+
+            // categories.name と tags.name を
+            // 大文字小文字無視で完全一致
+            const matchedTags = (tags ?? []).filter(
+                tag =>
+                    tag.name.toLowerCase() ===
+                    category.name.toLowerCase()
+            );
+
+            const tagIds = matchedTags.map(tag => tag.id);
+
+            if (tagIds.length === 0) {
+                setTagArticles([]);
+                return;
+            }
+
+            // 3. article_tags取得
+            const { data: articleTags }: {
+                data: ArticleTags[] | null;
+            } = await supabase
                 .from("article_tags")
                 .select(`
-                    article_id,
-                    tags (
-                        name
+            id,
+            article_id,
+            tag_id,
+            created_at,
+            updated_at
+        `)
+                .in("tag_id", tagIds);
+
+            const tagData = articleTags ?? [];
+
+            const articleIds = tagData.map(t => t.article_id);
+
+            if (articleIds.length === 0) {
+                setTagArticles([]);
+                return;
+            }
+
+            // 4. articles取得
+            const { data: articles }: {
+                data: Articles[] | null;
+            } = await supabase
+                .from("articles")
+                .select(`
+            id,
+            title,
+            url,
+            thumbnail_url,
+            likes_count,
+            created_at,
+            updated_at
+        `)
+                .in("id", articleIds)
+                .ilike("url", `%${service}%`)
+                .ilike("title", `%${keyword}%`);
+
+            const articleData = articles ?? [];
+
+            // tag_id -> tag map
+            const tagMap = new Map(
+                matchedTags.map(tag => [tag.id, tag])
+            );
+
+            // 5. merge
+            const merged = tagData
+                .filter(tag =>
+                    articleData.some(
+                        article => article.id === tag.article_id
                     )
-                `);
-            const safeArticles: Article[] = articles ?? [];
-            const safeTags: ArticleTagRow[] = articleTags ?? [];
-                    
-            // =========================
-            // ④ tagMap作成（O(1)アクセス）
-            // =========================
-            const tagMap = new Map<number, string[]>();
+                )
+                .map(tag => {
+                    const article =
+                        articleData.find(
+                            a => a.id === tag.article_id
+                        ) ?? null;
 
-            safeTags.forEach(at => {
-                if (!at.tags) return;
+                    const matchedTag =
+                        tagMap.get(tag.tag_id) ?? null;
 
-                const tagsArray = Array.isArray(at.tags)
-                    ? at.tags
-                    : [at.tags];
+                    return {
+                        ...tag,
+                        tag: matchedTag,
+                        articles: article,
+                        category
+                    };
+                });
 
-                const names = tagsArray.map(t => t.name);
-
-                tagMap.set(Number(at.article_id), names);
-            });
-
-            // =========================
-            // ⑤ merge
-            // =========================
-            const merged: ArticleWithTags[] = safeArticles.map(article => ({
-                ...article,
-                tags: tagMap.get(article.id) ?? []
-            }));
-            setArticles(merged);
-        }
-        fetchData();
-        console.log(articles)
-    }, []);
-
-    // お気に入り記事を取得
-    useEffect(() => {
-        const fetchFavorites = async () => {
-            if (!profileId) return;
-            const { data, error } = await supabase
-                .from("favorites")
-                .select("article_id, category_id")
-                .eq("profile_id", profileId);
-            if (error) return;
-
-            // 記事単位のお気に入り
-            const articleMap: Record<number, boolean> = {};
-            data.forEach((fav) => {
-                articleMap[fav.article_id] = true;
-            });
-            setFavoriteArticleMap(articleMap);
-
-            // カテゴリー単位のお気に入り
-            const categoryMap: Record<string, boolean> = {};
-            data.forEach((fav) => {
-                const key = `${fav.article_id}-${fav.category_id}`;
-                categoryMap[key] = true;
-            });
-            setFavoriteCategoryMap(categoryMap);
+            setTagArticles(merged);
         };
-        fetchFavorites();
-    }, [profileId]);
+
+        fetchData();
+    }, [categoryId, keyword, service]);
 
     return (
         <div className={styles.wrapper}>
             <Layout />
             <main className={styles.main}>
                 <div className={styles.topContainer}>
-                    <h2 className={styles.heading}>Feeds</h2>
+                    <h2 className={styles.heading}>{categoryName}</h2>
                     <div className={styles.searchContainer}>
                         <Input
                             type="text"
                             placeholder="Search"
                             inputSize="md"
+                            onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                    setKeyword(e.currentTarget.value);
+                                }
+                            }}
                         />
                         <Button variant="secondary" onClick={handleLogout}>ログアウト</Button>
                     </div>
@@ -257,26 +258,34 @@ export const ArticleTemplate = () => {
                                 <span>ログインしていません</span>
                             </div>
                         ) : (
-                            articles.map(article => (
+                            tagArticles.map(article => (
                                 <div key={article.id} className={styles.card}>
                                     <div className={styles.cardHeader}>
                                         <div className={styles.left}>
-                                            <span className={styles.count}>{article.likes_count}</span>
-                                            <span className={styles.label}>likes</span>
+                                            <span className={styles.serviceName}>
+                                                {
+                                                    article.articles?.url &&
+                                                    new URL(article.articles.url)
+                                                        .hostname
+                                                        .split('.')[0]
+                                                }
+                                            </span>
                                         </div>
                                         <div className={styles.right}>
                                             <a
-                                                href={article.url}
+                                                href={article.articles?.url}
                                                 rel="noreferrer"
                                                 className={styles.icon}
                                             >
                                                 <BookOpen size={30} />
                                             </a>
-                                            <Bookmark
-                                                size={30}
-                                                onClick={() => toggleBookmark(article.id)}
-                                                className={bookmarkArticleMap[article.id] ? styles.bookmarkActive : styles.bookmark}
-                                            />
+                                            <a
+                                                href="/share"
+                                                rel="noreferrer"
+                                                className={styles.icon}
+                                            >
+                                                <Bookmark size={30} />
+                                            </a>
                                             <div className="relative">
                                                 <Heart
                                                     size={24}
@@ -290,7 +299,13 @@ export const ArticleTemplate = () => {
                                                         );
                                                     }}
                                                     // お気に入り済みであれば赤に変更
-                                                    className={favoriteArticleMap[article.id] ? styles.heartActive : styles.heart}
+                                                    className={
+                                                        favoriteCategoryMap[
+                                                            `${article.article_id}-${categoryId}`
+                                                        ]
+                                                            ? styles.active
+                                                            : ""
+                                                    }
                                                 />
                                                 {openArticleId === article.id && (
                                                     <div
@@ -308,8 +323,26 @@ export const ArticleTemplate = () => {
                                                                 </span>
 
                                                                 {/* クリックで記事とカテゴリーの同時保存だがここは後ほど変更 */}
-                                                                <Button variant={favoriteCategoryMap[`${article.id}-${category.id}`] ? "quaternary" : "tertiary"} onClick={() => toggleFavorite(article.id, category.id)}>
-                                                                    {favoriteCategoryMap[`${article.id}-${category.id}`] ? "SAVED" : "SAVE"}
+                                                                <Button
+                                                                    variant={
+                                                                        favoriteCategoryMap[
+                                                                            `${article.article_id}-${category.id}`
+                                                                        ]
+                                                                            ? "quaternary"
+                                                                            : "tertiary"
+                                                                    }
+                                                                    onClick={() =>
+                                                                        toggleFavorite(
+                                                                            article.article_id,
+                                                                            category.id
+                                                                        )
+                                                                    }
+                                                                >
+                                                                    {favoriteCategoryMap[
+                                                                        `${article.article_id}-${category.id}`
+                                                                    ]
+                                                                        ? "SAVED"
+                                                                        : "SAVE"}
                                                                 </Button>
                                                             </div>
                                                         ))}
@@ -321,30 +354,25 @@ export const ArticleTemplate = () => {
                                     <div className={styles.cardBody}>
                                         <div className={styles.avatarHeader}>
                                             <img
-                                                src={article.thumbnail_url}
+                                                src={article.articles?.thumbnail_url}
                                                 alt=""
                                                 className={styles.avatar}
                                             />
                                         </div>
 
                                         <div className={styles.contentArea}>
-                                            <h3 className={styles.title}>{article.title}</h3>
+                                            <h3 className={styles.title}>{article.articles?.title}</h3>
 
                                             <div className={styles.meta}>
-                                                <span>🕒 {new Date(article.updated_at).toLocaleDateString()}</span>
-                                            </div>
-                                            <div className={styles.tags}>
-                                                {article.tags.map((tag, i) => (
-                                                    <span key={i} className={styles.tag}>
-                                                        {tag}
-                                                    </span>
-                                                ))}
+                                                <span>🕒 {article.articles?.updated_at
+                                                    ? new Date(article.articles.updated_at).toLocaleDateString()
+                                                    : "-"}</span>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
                             ))
-                        )}     
+                        )}
                     </div>
                 </div>
             </main>

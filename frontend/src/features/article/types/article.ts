@@ -7,6 +7,11 @@ export type Tag = {
     name: string;
 };
 
+export type Tags = {
+    id: number;
+    name: string;
+}
+
 export type Article = {
     id: number;
     title: string;
@@ -90,3 +95,17 @@ export type FavoriteArticle = {
         updated_at: string;
     } | null;
 }
+
+export type TagArticle = {
+    id: number;
+    article_id: number;
+    tag_id: number;
+    created_at: string;
+    updated_at: string;
+};
+
+export type TagArticleWithRelations = TagArticle & {
+    tag: Tags | null;
+    articles: Articles | null;
+    category: Category | null;
+};
