@@ -1,5 +1,3 @@
-// 全体の処理としてはQiitaとZenn記事を取得しDBに保存する
-// 直近7日間で公開された記事のいいね数を更新する
 import { createClient } from '@supabase/supabase-js';
 
 import {
@@ -10,14 +8,17 @@ import {
     ZennArticleDetail
 } from './types';
 
-const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_ANON_KEY!);
+const supabase = createClient(
+    process.env.SUPABASE_URL!,
+    process.env.SUPABASE_ANON_KEY!
+);
 
 // 非同期処理の結果にはPromiseで対応
 async function fetchQiita(existingUrlSet: Set<string>): Promise<Article[]> {
     console.log('qiita start')
     const res = await fetch('https://qiita.com/api/v2/items?');
     const data: QiitaArticle[] = await res.json();
-
+    console.log(data);
     // APIが壊れているものは除外
     if (!Array.isArray(data)) {
         console.error('Invalid Qiita response:', data);
