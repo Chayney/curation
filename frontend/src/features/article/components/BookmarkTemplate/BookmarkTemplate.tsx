@@ -6,26 +6,17 @@ import { Input } from "../../../../shared/ui/input";
 import { Bookmark, BookOpen, Heart, Loader2 } from "lucide-react";
 import { Button } from "../../../../shared/ui/button";
 import { supabase } from "../../../../shared/lib/supabaseClient";
-import { useNavigate } from "react-router-dom";
-import { NAVIGATION_LIST } from "../../../../shared/const/navigation";
 import { useAuthContext } from "../../../auth/hooks/useAuthContext";
 
 export const BookmarkTemplate = () => {
-    const navigate = useNavigate();
-
-    // ログインユーザーのIDを取得
     const {
-        // ログインユーザーID
         profileId,
-        // 認証情報を取得中
         loading,
-        // ログイン状態
         isAuth
     } = useAuthContext();
 
     const handleLogout = async () => {
         await supabase.auth.signOut();
-        navigate(NAVIGATION_LIST.LOGIN);
     }
 
     const [bookmarkArticles, setBookmarkArticles] = useState<BookmarkArticle[]>([]);

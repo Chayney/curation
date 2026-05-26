@@ -19,7 +19,7 @@ export const LoginTemplate = () => {
         event.preventDefault();
         try {
             await login();
-            navigate(NAVIGATION_LIST.TOP);
+            navigate(NAVIGATION_LIST.FEED);
         } catch (error) {
             alert('ログイン中にエラーが発生しました')
         }

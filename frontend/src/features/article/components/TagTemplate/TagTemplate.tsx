@@ -6,28 +6,20 @@ import { Input } from "../../../../shared/ui/input";
 import { Bookmark, BookOpen, Heart, Loader2 } from "lucide-react";
 import { Button } from "../../../../shared/ui/button";
 import { supabase } from "../../../../shared/lib/supabaseClient";
-import { useNavigate, useParams } from "react-router-dom";
-import { NAVIGATION_LIST } from "../../../../shared/const/navigation";
+import { useParams } from "react-router-dom";
 import { useAuthContext } from "../../../auth/hooks/useAuthContext";
 
 export const TagTemplate = () => {
-    const navigate = useNavigate();
     const { id, service } = useParams();
     const categoryId = Number(id);
-    
-    // ログインユーザーのIDを取得
     const {
-        // ログインユーザーID
         profileId,
-        // 認証情報を取得中
         loading,
-        // ログイン状態
         isAuth
     } = useAuthContext();
 
     const handleLogout = async () => {
         await supabase.auth.signOut();
-        navigate(NAVIGATION_LIST.LOGIN);
     }
 
     const [tagArticles, setTagArticles] = useState<

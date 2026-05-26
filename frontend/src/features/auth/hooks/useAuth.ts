@@ -12,33 +12,58 @@ export const useAuth = () => {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const check = async () => {
-            const { data } = await supabase.auth.getSession();
-            setSession(data.session);
-            setUser(data.session?.user ?? null);
-            if (!data.session) {
-                navigate(NAVIGATION_LIST.LOGIN);
-                setLoading(false);
+        const syncProfile = async (userId: string | undefined) => {
+            if (!userId) {
+                setProfileId(null);
                 return;
             }
 
-            // profile取得
-            // ログインユーザーIDはprofilesテーブルのIDを使用
             const { data: profile, error } = await supabase
                 .from("profiles")
                 .select("id")
-                .eq("user_id", data.session.user.id)
+                .eq("user_id", userId)
                 .single();
+
             if (error) {
-                console.error(error);
+                console.error("profile fetch error", error);
                 setProfileId(null);
-            } else {
-                setProfileId(profile.id);
+                return;
             }
-            setLoading(false);
+
+            setProfileId(profile.id);
         };
-        check();
-    }, []);
+
+        const getSession = async () => {
+            const { data } =
+                await supabase.auth.getSession();
+            const session = data.session;
+            setSession(session);
+            setUser(session?.user ?? null);
+            await syncProfile(session?.user.id);
+            setLoading(false);
+            if (!session) {
+                navigate(NAVIGATION_LIST.LOGIN);
+            }
+        };
+        getSession();
+        const {
+            data: { subscription },
+        } = supabase.auth.onAuthStateChange(
+            async (_, session) => {
+                setSession(session);
+                setUser(session?.user ?? null);
+                await syncProfile(session?.user.id);
+                setLoading(false);
+                if (!session) {
+                    navigate(NAVIGATION_LIST.LOGIN);
+                }
+            }
+        );
+
+        return () => {
+            subscription.unsubscribe();
+        };
+    }, [navigate]);
 
     return {
         session,

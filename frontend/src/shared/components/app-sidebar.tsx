@@ -181,7 +181,7 @@ export function AppSidebar() {
 
                                         {/* 子 */}
                                         {hasChildren && isOpen && (
-                                            <div className="ml-4">
+                                            <SidebarMenuSub>
                                                 {item.children.map((child) => (
                                                     <SidebarMenuItem key={child.title}>
                                                         <SidebarMenuButton asChild>
@@ -193,7 +193,7 @@ export function AppSidebar() {
                                                         </SidebarMenuButton>
                                                     </SidebarMenuItem>
                                                 ))}
-                                            </div>
+                                            </SidebarMenuSub>
                                         )}
                                     </SidebarMenuItem>
                                 );
