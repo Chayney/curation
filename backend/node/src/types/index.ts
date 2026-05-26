@@ -45,6 +45,7 @@ export type ZennArticleDetail = {
         title: string;
         slug: string;
         topics: ZennTopic[];
+        liked_count?: number;
     };
 };
 

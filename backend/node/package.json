@@ -6,6 +6,9 @@
     "dev": "NODE_ENV=development nodemon --watch 'src/**/*' --exec ts-node src/index.ts",
     "build": "tsc",
     "start": "NODE_ENV=production node dist/index.js",
+    "collect": "NODE_ENV=production node dist/index.js collect",
+    "ogp": "NODE_ENV=production node dist/index.js ogp",
+    "likes": "NODE_ENV=production node dist/index.js likes",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

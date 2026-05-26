@@ -1,105 +1,66 @@
 import { createClient } from '@supabase/supabase-js';
 
-import {
-    Article,
-    ZennResponse,
-    QiitaArticle,
-    Tag,
-    ZennArticleDetail
-} from './types';
+import type { QiitaArticle, ZennTopic, ZennResponse, ZennArticleDetail, ArticleTag, QiitaTag} from './types/index';
 
 const supabase = createClient(
     process.env.SUPABASE_URL!,
     process.env.SUPABASE_ANON_KEY!
 );
 
-// 非同期処理の結果にはPromiseで対応
-async function fetchQiita(existingUrlSet: Set<string>): Promise<Article[]> {
-    console.log('qiita start')
-    const res = await fetch('https://qiita.com/api/v2/items?');
-    const data: QiitaArticle[] = await res.json();
-    console.log(data);
-    // APIが壊れているものは除外
-    if (!Array.isArray(data)) {
-        console.error('Invalid Qiita response:', data);
-        return [];
-    }
+const FETCH_LIMIT = 5;
 
-    return await Promise.all(
-        // urlが無いものは除外
-        data
-            .filter(item => !!item.title && !!item.url)
-
-            // 整形されたデータを自前で用意した型に変換するためmapを使用
-            // 既存記事チェックと新規記事に対してのみOGP画像を取得
-            // Qiitaのタグを自前の型に変換
-            .map(async (item): Promise<Article> => {
-                const isExisting = existingUrlSet.has(item.url);
-
-                let thumbnail_url: string | null = null;
-
-                if (!isExisting) {
-                    thumbnail_url = await fetchOgpImage(item.url);
-                }
-
-                return {
-                    title: item.title,
-                    url: item.url,
-                    likes_count: item.likes_count ?? 0,
-                    thumbnail_url,
-                    tags: item.tags.map((tag): Tag => ({ name: tag.name }))
-                };
-            })
-    );
+function sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-async function fetchZenn(existingUrlSet: Set<string>): Promise<Article[]> {
-    const res = await fetch('https://zenn.dev/api/articles?order=latest');
-    const data: ZennResponse = await res.json();
+async function fetchWithRetry(
+    url: string,
+    options: RequestInit = {},
+    retries = 5
+): Promise<Response | null> {
+    for (let i = 0; i < retries; i++) {
+        try {
+            const res = await fetch(url, options);
 
-    if (!data?.articles || !Array.isArray(data.articles)) {
-        console.error('Invalid Zenn response:', data);
-        return [];
+            if (res.ok) return res;
+
+        } catch (e) {
+            console.warn('fetch error', url, e);
+        }
+
+        await sleep(1000 * Math.pow(2, i));
     }
 
-    return await Promise.all(
-        data.articles.map(async (item): Promise<Article> => {
-            const url = `https://zenn.dev${item.path}`;
-            const isExisting = existingUrlSet.has(url);
-
-            let thumbnail_url = '';
-
-            if (!isExisting) {
-                thumbnail_url = (await fetchOgpImage(url)) ?? '';
-            }
-
-            // Zennは一覧APIのみではタグが取得できないため記事詳細APIの取得が必要
-            const detailRes = await fetch(`https://zenn.dev/api/articles/${item.slug}`);
-            const detail: ZennArticleDetail = await detailRes.json();
-
-            return {
-                title: item.title,
-                url,
-                thumbnail_url,
-                likes_count: item.liked_count ?? 0,
-                tags: detail.article.topics.map((topic): Tag => ({ name: topic.name }))
-            };
-        })
-    );
+    return null;
 }
 
 function decodeOgpUrl(url: string): string {
     return url.replace(/&amp;/g, '&').trim();
 }
 
+/**
+ * fetch OGP image safely
+ */
 async function fetchOgpImage(url: string): Promise<string> {
     try {
-        const res = await fetch(url, {
-            headers: {
-                'User-Agent': 'Mozilla/5.0',
-                'Accept-Language': 'ja'
-            }
-        });
+        await sleep(2000);
+
+        const res = await fetchWithRetry(
+            url,
+            {
+                headers: {
+                    'User-Agent':
+                        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36',
+                    'Accept-Language': 'ja',
+                },
+            },
+            2
+        );
+
+        if (!res) {
+            console.warn('OGP fetch failed:', url);
+            return '';
+        }
 
         const html = await res.text();
 
@@ -107,190 +68,353 @@ async function fetchOgpImage(url: string): Promise<string> {
             /<meta\s+property=["']og:image["']\s+content=["'](.*?)["']/i
         );
 
-        if (!match?.[1]) {
-            return '';
-        }
+        if (!match?.[1]) return '';
 
         return decodeOgpUrl(match[1]);
     } catch (e) {
-        console.error(e);
+        console.warn('OGP error:', url, e);
         return '';
     }
 }
 
-async function updateLikesCount() {
-    // 直近7日記事のみ更新
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+/**
+ * collect job (main pipeline)
+ */
+async function collectJob(): Promise<void> {
+    console.log('collect start');
 
-    const { data: articles, error } = await supabase
-        .from('articles')
-        .select(`id, url, created_at`)
-        .gte('created_at', sevenDaysAgo);
+    /**
+     * =========================
+     * Qiita
+     * =========================
+     */
+    const qiitaRes = await fetchWithRetry(
+        `https://qiita.com/api/v2/items?page=1&per_page=${FETCH_LIMIT}`
+    );
 
-    if (error || !articles) {
-        console.error(error);
+    if (!qiitaRes) {
+        console.warn('Qiita list fetch failed');
         return;
     }
 
-    for (const article of articles) {
+    let qiitaData: QiitaArticle[];
+
+    try {
+        qiitaData = await qiitaRes.json();
+    } catch (e) {
+        console.warn('Qiita JSON parse failed');
+        return;
+    }
+
+    for (const item of qiitaData) {
+        await supabase.from('articles').upsert(
+            {
+                title: item.title,
+                url: item.url,
+                likes_count: item.likes_count ?? 0,
+            },
+            { onConflict: 'url' }
+        );
+
+        const { data: articleRow } = await supabase
+            .from('articles')
+            .select('id')
+            .eq('url', item.url)
+            .single();
+
+        if (!articleRow) continue;
+
+        const topics =
+            item.tags?.map((t: QiitaTag) => t.name) ?? [];
+
+        for (const tag of topics) {
+            const { data: tagRow } = await supabase
+                .from('tags')
+                .upsert({ name: tag }, { onConflict: 'name' })
+                .select()
+                .single();
+
+            if (!tagRow) continue;
+
+            await supabase.from('article_tags').upsert(
+                {
+                    article_id: articleRow.id,
+                    tag_id: tagRow.id,
+                },
+                { onConflict: 'article_id,tag_id' }
+            );
+        }
+
+        await sleep(500);
+    }
+
+    /**
+     * =========================
+     * Zenn
+     * =========================
+     */
+    const zennRes = await fetchWithRetry(
+        `https://zenn.dev/api/articles?order=latest&page=1&count=${FETCH_LIMIT}`
+    );
+
+    if (!zennRes) {
+        console.warn('Zenn list fetch failed');
+        return;
+    }
+
+    let zennData: ZennResponse;
+
+    try {
+        zennData = await zennRes.json();
+    } catch (e) {
+        console.warn('Zenn list JSON parse failed');
+        return;
+    }
+
+    for (const item of zennData.articles) {
+        const detailRes = await fetchWithRetry(
+            `https://zenn.dev/api/articles/${item.slug}`
+        );
+
+        if (!detailRes) {
+            console.warn('Zenn detail fetch failed:', item.slug);
+            continue;
+        }
+
+        let detail: ZennArticleDetail;
+
+        try {
+            detail = await detailRes.json();
+        } catch (e) {
+            console.warn('Zenn detail JSON error:', item.slug);
+            continue;
+        }
+
+        const url = `https://zenn.dev${item.path}`;
+
+        await supabase.from('articles').upsert(
+            {
+                title: item.title,
+                url,
+                likes_count: detail.article?.liked_count ?? 0,
+            },
+            { onConflict: 'url' }
+        );
+
+        const { data: articleRow } = await supabase
+            .from('articles')
+            .select('id')
+            .eq('url', url)
+            .single();
+
+        if (!articleRow) continue;
+
+        const topics =
+            detail.article?.topics?.map(
+                (t: ZennTopic) => t.name
+            ) ?? [];
+
+        for (const tag of topics) {
+            const { data: tagRow } = await supabase
+                .from('tags')
+                .upsert({ name: tag }, { onConflict: 'name' })
+                .select()
+                .single();
+
+            if (!tagRow) continue;
+
+            await supabase.from('article_tags').upsert(
+                {
+                    article_id: articleRow.id,
+                    tag_id: tagRow.id,
+                },
+                { onConflict: 'article_id,tag_id' }
+            );
+        }
+
+        await sleep(1500);
+    }
+
+    console.log('collect done');
+}
+
+/**
+ * ogp job
+ */
+async function ogpJob(): Promise<void> {
+    console.log('ogp start');
+
+    const { data: articles } = await supabase
+        .from('articles')
+        .select('id, url')
+        .is('thumbnail_url', null);
+console.log(articles)
+    if (!articles) {
+        return;
+    }
+
+    for (const article of articles as {
+        id: number;
+        url: string;
+    }[]) {
+        try {
+            const thumbnail_url =
+                await fetchOgpImage(article.url);
+
+            await supabase
+                .from('articles')
+                .update({
+                    thumbnail_url
+                })
+                .eq('id', article.id);
+
+            await sleep(3000);
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    console.log('ogp done');
+}
+
+/**
+ * likes job
+ */
+async function likesJob(): Promise<void> {
+    console.log('likes start');
+
+    const { data: articles } = await supabase
+        .from('articles')
+        .select('id, url')
+        .gte(
+            'created_at',
+            new Date(
+                Date.now() - 7 * 24 * 60 * 60 * 1000
+            ).toISOString()
+        );
+
+    if (!articles) return;
+
+    for (const article of articles as {
+        id: number;
+        url: string;
+    }[]) {
         try {
             let likes_count = 0;
 
+            /**
+             * =========================
+             * Qiita
+             * =========================
+             */
             if (article.url.includes('qiita.com')) {
-                const match = article.url.match(/qiita\.com\/.+\/items\/([a-zA-Z0-9]+)/);
+                const match = article.url.match(
+                    /items\/([a-zA-Z0-9]+)/
+                );
 
-                if (!match?.[1]) {
+                if (!match?.[1]) continue;
+
+                const res = await fetchWithRetry(
+                    `https://qiita.com/api/v2/items/${match[1]}`
+                );
+
+                if (!res) {
+                    console.warn('Qiita fetch failed:', article.url);
                     continue;
                 }
 
-                const itemId = match[1];
+                let data: QiitaArticle;
 
-                // 記事詳細APIからいいね数を再取得
-                const res = await fetch(`https://qiita.com/api/v2/items/${itemId}`);
-
-                if (!res.ok) {
+                try {
+                    data = await res.json();
+                } catch (e) {
+                    console.warn('Qiita JSON error:', article.url);
                     continue;
                 }
 
-                const data = await res.json();
                 likes_count = data.likes_count ?? 0;
-            } else if (article.url.includes('zenn.dev')) {
-                const match = article.url.match(/zenn\.dev\/.+\/articles\/(.+)/);
+            }
 
-                if (!match?.[1]) {
+            /**
+             * =========================
+             * Zenn
+             * =========================
+             */
+            else {
+                const match = article.url.match(
+                    /articles\/(.+)/
+                );
+
+                if (!match?.[1]) continue;
+
+                const res = await fetchWithRetry(
+                    `https://zenn.dev/api/articles/${match[1]}`
+                );
+
+                if (!res) {
+                    console.warn('Zenn fetch failed:', article.url);
                     continue;
                 }
 
-                const slug = match[1];
+                let data: ZennArticleDetail;
 
-                const res = await fetch(`https://zenn.dev/api/articles/${slug}`);
-
-                if (!res.ok) {
+                try {
+                    data = await res.json();
+                } catch (e) {
+                    console.warn('Zenn JSON error:', article.url);
                     continue;
                 }
 
-                const data = await res.json();
                 likes_count = data.article?.liked_count ?? 0;
             }
 
+            /**
+             * update DB
+             */
             await supabase
                 .from('articles')
                 .update({ likes_count })
                 .eq('id', article.id);
+
+            await sleep(2000);
         } catch (e) {
-            console.error(`failed: ${article.url}`, e);
-        }
-    }
-}
-
-async function main() {
-    console.log('batch start');
-
-    const { data: existingArticles } = await supabase
-        .from('articles')
-        .select('url');
-
-    const existingUrlSet = new Set(existingArticles?.map(article => article.url));
-
-    const [qiita, zenn] = await Promise.all([
-        fetchQiita(existingUrlSet),
-        fetchZenn(existingUrlSet)
-    ]);
-
-    const articles: Article[] = [...qiita, ...zenn];
-
-    const newArticles = articles.filter(article => !existingUrlSet.has(article.url));
-
-    const existingArticlesToUpdate = articles.filter(article => existingUrlSet.has(article.url));
-
-    const allTagNames = Array.from(
-        new Set(
-            articles.flatMap(article => article.tags.map(tag => tag.name))
-        )
-    );
-
-    await supabase
-        .from('tags')
-        .upsert(allTagNames.map(name => ({ name })), { onConflict: 'name' });
-
-    const { data: tagRows } = await supabase
-        .from('tags')
-        .select('id, name')
-        .in('name', allTagNames);
-
-    if (!tagRows) {
-        throw new Error('tagRows is null');
-    }
-
-    const tagMap = new Map(tagRows.map(tag => [tag.name, tag.id]));
-
-    if (existingArticlesToUpdate.length > 0) {
-        await supabase
-            .from('articles')
-            .upsert(
-                existingArticlesToUpdate.map(article => ({
-                    title: article.title,
-                    url: article.url,
-                    likes_count: article.likes_count ?? 0
-                })),
-                { onConflict: 'url' }
-            );
-    }
-
-    if (newArticles.length > 0) {
-        const { error } = await supabase
-            .from('articles')
-            .insert(
-                newArticles.map(article => ({
-                    title: article.title,
-                    url: article.url,
-                    likes_count: article.likes_count ?? 0,
-                    thumbnail_url: article.thumbnail_url
-                }))
-            );
-
-        if (error) {
-            console.error(error);
-            process.exit(1);
+            console.error('likesJob item error:', e);
         }
     }
 
-    const { data: allArticles } = await supabase
-        .from('articles')
-        .select('id, url');
-
-    const articleMap = new Map(allArticles?.map(article => [article.url, article.id]));
-
-    const articleTags = articles.flatMap(article =>
-        article.tags.map(tag => {
-            const tagId = tagMap.get(tag.name);
-            const articleId = articleMap.get(article.url);
-
-            if (tagId == null) {
-                throw new Error(`Missing tag: ${tag.name}`);
-            }
-
-            if (articleId == null) {
-                throw new Error(`Missing article: ${article.url}`);
-            }
-
-            return {
-                article_id: articleId,
-                tag_id: tagId
-            };
-        })
-    );
-
-    await supabase
-        .from('article_tags')
-        .upsert(articleTags, { onConflict: 'article_id,tag_id' });
-
-    console.log('batch done');
+    console.log('likes done');
 }
 
-async function run() {
-    await main();
-    await updateLikesCount();
+/**
+ * entrypoint
+ */
+async function run(): Promise<void> {
+    const mode = process.argv[2];
+
+    try {
+        switch (mode) {
+            case 'collect':
+                await collectJob();
+                break;
+
+            case 'ogp':
+                await ogpJob();
+                break;
+
+            case 'likes':
+                await likesJob();
+                break;
+
+            default:
+                throw new Error('invalid mode');
+        }
+
+        process.exit(0);
+    } catch (e) {
+        console.error(e);
+
+        process.exit(1);
+    }
 }
 
 run();
