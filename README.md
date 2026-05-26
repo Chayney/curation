@@ -7,7 +7,7 @@ IT技術集約サイトです。
 ・react  
 ・react-dom  
 ・react-route  
-・shadocn/ui
+・shadcn/ui
 
 ### バックエンド  
 ・node.js  
