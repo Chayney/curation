@@ -12,59 +12,53 @@ export const useAuth = () => {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const syncProfile = async (userId: string | undefined) => {
-            if (!userId) {
-                setProfileId(null);
-                return;
-            }
-
-            const { data: profile, error } = await supabase
-                .from("profiles")
-                .select("id")
-                .eq("user_id", userId)
-                .single();
-
-            if (error) {
-                console.error("profile fetch error", error);
-                setProfileId(null);
-                return;
-            }
-
-            setProfileId(profile.id);
-        };
-
         const getSession = async () => {
             const { data } =
                 await supabase.auth.getSession();
+
             const session = data.session;
+
             setSession(session);
+
             setUser(session?.user ?? null);
-            await syncProfile(session?.user.id);
+
+            if (session?.user?.id) {
+                const {
+                    data: profile,
+                    error
+                } = await supabase
+                    .from("profiles")
+                    .select("id")
+                    .eq(
+                        "user_id",
+                        session.user.id
+                    )
+                    .single();
+
+                if (error) {
+                    console.error(
+                        "profile fetch error",
+                        error
+                    );
+
+                    setProfileId(null);
+                } else {
+                    setProfileId(profile.id);
+                }
+            } else {
+                setProfileId(null);
+            }
+
             setLoading(false);
+
             if (!session) {
                 navigate(NAVIGATION_LIST.LOGIN);
             }
         };
+
         getSession();
-        const {
-            data: { subscription },
-        } = supabase.auth.onAuthStateChange(
-            async (_, session) => {
-                setSession(session);
-                setUser(session?.user ?? null);
-                await syncProfile(session?.user.id);
-                setLoading(false);
-                if (!session) {
-                    navigate(NAVIGATION_LIST.LOGIN);
-                }
-            }
-        );
-
-        return () => {
-            subscription.unsubscribe();
-        };
     }, [navigate]);
-
+    
     return {
         session,
         user,

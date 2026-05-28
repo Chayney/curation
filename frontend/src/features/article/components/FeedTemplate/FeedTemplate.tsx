@@ -12,8 +12,11 @@ import { Bookmark, BookOpen, Heart, Loader2 } from "lucide-react";
 import { Button } from "../../../../shared/ui/button";
 import { supabase } from "../../../../shared/lib/supabaseClient";
 import { useAuthContext } from "../../../auth/hooks/useAuthContext";
+import { useNavigate } from "react-router-dom";
+import { NAVIGATION_LIST } from "../../../../shared/const/navigation";
 
 export const FeedTemplate = () => {
+    const navigate = useNavigate();
     const {
         profileId,
         loading,
@@ -22,6 +25,7 @@ export const FeedTemplate = () => {
 
     const handleLogout = async () => {
         await supabase.auth.signOut();
+        navigate(NAVIGATION_LIST.LOGIN)
     };
 
     // =========================
