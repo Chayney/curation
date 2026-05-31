@@ -54,7 +54,8 @@ export const FeedTemplate = () => {
     // =========================
     // Pagination
     // =========================
-    const [currentPage, setCurrentPage] = useState(1);
+    const [currentPage, setCurrentPage] =
+        useState(1);
 
     const ITEMS_PER_PAGE = 10;
 
@@ -69,6 +70,43 @@ export const FeedTemplate = () => {
     const totalPages = Math.ceil(
         articles.length / ITEMS_PER_PAGE
     );
+
+    // 表示するページ番号を最大5件に制限
+    const MAX_VISIBLE_PAGES = 5;
+
+    let startPage = Math.max(
+        1,
+        currentPage -
+        Math.floor(
+            MAX_VISIBLE_PAGES / 2
+        )
+    );
+
+    let endPage =
+        startPage +
+        MAX_VISIBLE_PAGES -
+        1;
+
+    if (endPage > totalPages) {
+        endPage = totalPages;
+        startPage = Math.max(
+            1,
+            endPage -
+            MAX_VISIBLE_PAGES +
+            1
+        );
+    }
+
+    const visiblePages = Array.from(
+        {
+            length:
+                endPage -
+                startPage +
+                1
+        },
+        (_, i) => startPage + i
+    );
+
 
     // =========================
     // Bookmark Toggle
@@ -94,6 +132,7 @@ export const FeedTemplate = () => {
                 ...prev,
                 [articleId]: false
             }));
+            showTooltip(articleId, "Delete Bookmark");
         } else {
             const { error } = await supabase
                 .from("bookmarks")
@@ -111,6 +150,7 @@ export const FeedTemplate = () => {
                 ...prev,
                 [articleId]: true
             }));
+            showTooltip(articleId, "Add Bookmark");
         }
     };
 
@@ -139,9 +179,27 @@ export const FeedTemplate = () => {
                 return;
             }
 
-            setFavoriteCategoryMap((prev) => ({
-                ...prev,
+            const updatedCategoryMap = {
+                ...favoriteCategoryMap,
                 [key]: false
+            };
+
+            setFavoriteCategoryMap(updatedCategoryMap);
+
+            // article内にまだお気に入りが残っているか確認
+            const hasAnyFavorite = Object.entries(
+                updatedCategoryMap
+            ).some(([mapKey, value]) => {
+                return (
+                    mapKey.startsWith(
+                        `${articleId}-`
+                    ) && value
+                );
+            });
+
+            setFavoriteArticleMap((prev) => ({
+                ...prev,
+                [articleId]: hasAnyFavorite
             }));
         } else {
             const { error } = await supabase
@@ -167,6 +225,22 @@ export const FeedTemplate = () => {
                 [articleId]: true
             }));
         }
+    };
+
+    const [tooltip, setTooltip] = useState<{
+        articleId: number;
+        message: string;
+    } | null>(null);
+
+    const showTooltip = (
+        articleId: number,
+        message: string
+    ) => {
+        setTooltip({ articleId, message });
+
+        setTimeout(() => {
+            setTooltip(null);
+        }, 2000);
     };
 
     // =========================
@@ -226,6 +300,7 @@ export const FeedTemplate = () => {
                     created_at,
                     updated_at
                 `)
+                .order("created_at", { ascending: false })
                 .ilike("title", `%${keyword}%`);
 
             if (articlesError) {
@@ -539,6 +614,18 @@ export const FeedTemplate = () => {
                                                             }
                                                         />
 
+                                                        {/* Tooltip */}
+                                                        {tooltip?.articleId ===
+                                                            article.id && (
+                                                                <div
+                                                                    className={
+                                                                        styles.tooltip
+                                                                    }
+                                                                >
+                                                                    {tooltip.message}
+                                                                </div>
+                                                            )}
+
                                                         {/* Dropdown */}
                                                         {openArticleId ===
                                                             article.id && (
@@ -578,12 +665,24 @@ export const FeedTemplate = () => {
                                                                                             ? "quaternary"
                                                                                             : "tertiary"
                                                                                     }
-                                                                                    onClick={() =>
+                                                                                    onClick={() => {
+                                                                                        const isSaved =
+                                                                                            favoriteCategoryMap[
+                                                                                            `${article.id}-${category.id}`
+                                                                                            ];
+
                                                                                         toggleFavorite(
                                                                                             article.id,
                                                                                             category.id
-                                                                                        )
-                                                                                    }
+                                                                                        );
+
+                                                                                        showTooltip(
+                                                                                            article.id,
+                                                                                            isSaved
+                                                                                                ? "Delete Favorite"
+                                                                                                : "Add Favorite"
+                                                                                        );
+                                                                                    }}
                                                                                 >
                                                                                     {favoriteCategoryMap[
                                                                                         `${article.id}-${category.id}`
@@ -681,7 +780,7 @@ export const FeedTemplate = () => {
                                     )
                                 )}
 
-                                {/* Pagination */}
+                                {/* Pagination */} 
                                 {totalPages > 1 && (
                                     <div
                                         className={
@@ -692,46 +791,36 @@ export const FeedTemplate = () => {
                                         <Button
                                             variant="secondary"
                                             disabled={
-                                                currentPage ===
-                                                1
+                                                currentPage === 1
                                             }
                                             onClick={() =>
                                                 setCurrentPage(
-                                                    (
-                                                        prev
-                                                    ) =>
-                                                        prev -
-                                                        1
+                                                    (prev) =>
+                                                        prev - 1
                                                 )
                                             }
                                         >
                                             Prev
                                         </Button>
 
-                                        {/* Page Number */}
-                                        {Array.from(
-                                            {
-                                                length:
-                                                    totalPages
-                                            },
-                                            (_, i) => (
+                                        {/* Page Numbers */}
+                                        {visiblePages.map(
+                                            (page) => (
                                                 <button
-                                                    key={i}
+                                                    key={page}
                                                     onClick={() =>
                                                         setCurrentPage(
-                                                            i +
-                                                            1
+                                                            page
                                                         )
                                                     }
                                                     className={
                                                         currentPage ===
-                                                            i +
-                                                            1
+                                                            page
                                                             ? styles.activePage
                                                             : styles.pageButton
                                                     }
                                                 >
-                                                    {i + 1}
+                                                    {page}
                                                 </button>
                                             )
                                         )}
@@ -745,11 +834,8 @@ export const FeedTemplate = () => {
                                             }
                                             onClick={() =>
                                                 setCurrentPage(
-                                                    (
-                                                        prev
-                                                    ) =>
-                                                        prev +
-                                                        1
+                                                    (prev) =>
+                                                        prev + 1
                                                 )
                                             }
                                         >

@@ -11,15 +11,15 @@ export default function Layout() {
         <TooltipProvider>
             {!isMobile ? (
                 <SidebarProvider defaultOpen={true}>
-                    <div className="layout">
+                    <div>
                         <AppSidebar />
-                        <main className="main">{/* content */}</main>
+                        <main>{/* content */}</main>
                     </div>
                 </SidebarProvider>
             ) : (
-                <div className="layout">
+                <div>
                     <MobileNav />
-                    <main className="main">{/* content */}</main>
+                    <main>{/* content */}</main>
                 </div>
             )}
         </TooltipProvider>
