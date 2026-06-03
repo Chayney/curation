@@ -1,5 +1,5 @@
-import { Button } from "../../../../shared/ui/button"
-import { Input } from "../../../../shared/ui/input"
+import { Button } from "../../../../shared/components/ui/button"
+import { Input } from "../../../../shared/components/ui/input"
 import styles from "./style.module.css"
 import { useNavigate } from "react-router-dom"
 import { NAVIGATION_LIST } from "../../../../shared/const/navigation"

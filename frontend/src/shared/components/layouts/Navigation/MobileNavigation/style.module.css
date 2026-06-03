@@ -1,0 +1,46 @@
+.wrapper {
+    width: 100%;
+    position: relative;
+    background: #000;
+}
+
+.scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.nav {
+    display: flex;
+    flex-wrap: nowrap;
+    width: max-content;
+    gap: 12px;
+    padding: 12px 10px;
+}
+
+.link {
+    flex: 0 0 auto;
+    color: #fff;
+    padding: 6px 10px;
+    white-space: nowrap;
+    text-decoration: none;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+}
+
+.dropdown {
+    position: fixed;
+    background: #111;
+    border-radius: 8px;
+    padding: 8px 0;
+    min-width: 160px;
+    z-index: 99999;
+}
+
+.item {
+    display: block;
+    padding: 8px 12px;
+    color: #fff;
+    text-decoration: none;
+    font-size: 13px;
+}

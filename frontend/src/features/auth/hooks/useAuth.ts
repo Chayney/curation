@@ -58,12 +58,23 @@ export const useAuth = () => {
 
         getSession();
     }, [navigate]);
+
+    const logout = async () => {
+        await supabase.auth.signOut();
+
+        setSession(null);
+        setUser(null);
+        setProfileId(null);
+
+        navigate(NAVIGATION_LIST.LOGIN);
+    };
     
     return {
         session,
         user,
         profileId,
         loading,
-        isAuth: !!user
+        isAuth: !!user,
+        logout
     }
 }

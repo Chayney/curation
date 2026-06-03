@@ -1,0 +1,32 @@
+.pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+    margin-top: 32px;
+    flex-wrap: wrap;
+}
+
+.pageButton {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    border: none;
+    background: #e5e7eb;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.pageButton:hover {
+    background: #d1d5db;
+}
+
+.activePage {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    border: none;
+    background: #111827;
+    color: white;
+    cursor: pointer;
+}

@@ -1,7 +1,7 @@
 import * as React from "react"
 import { cva, type VariantProps } from "class-variance-authority"
 
-import { cn } from "../lib/utils"
+import { cn } from "../../lib/utils"
 
 const inputVariants = cva(
   "w-full rounded-lg px-2.5 outline-none transition-colors placeholder:text-muted-foreground disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50",
@@ -18,7 +18,7 @@ const inputVariants = cva(
       inputSize: {
         sm: "h-8 w-[40%] text-sm",
         md: "h-8 w-[60%] text-base",
-        lg: "h-12 w-[80%] text-lg",
+        lg: "h-8 w-[80%] text-lg",
       },
     },
     defaultVariants: {

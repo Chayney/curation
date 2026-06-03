@@ -1,4 +1,7 @@
 /** @type {import('tailwindcss').Config} */
+// src/index.cssの:rootで色の設定
+// hslを消せば ↑ の設定が適用
+
 export default {
   content: [
     "./index.html",
@@ -10,7 +13,9 @@ export default {
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
         background: "hsl(var(--background))",
-        foreground: "hsl(var(--foreground))",
+        foreground: "var(--foreground)",
+        sidebar: "var(--sidebar)",
+        "sidebar-foreground": "var(--sidebar-foreground)"
       },
     },
   },

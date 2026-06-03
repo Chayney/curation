@@ -11,7 +11,8 @@ type AuthContextType = {
     user: User | null,
     profileId: number | null,
     loading: boolean,
-    isAuth: boolean
+    isAuth: boolean,
+    logout: () => Promise<void>
 }
 
 export const AuthContext = createContext<AuthContextType>({
@@ -19,11 +20,12 @@ export const AuthContext = createContext<AuthContextType>({
     user: null,
     profileId: null,
     loading: true,
-    isAuth: false
+    isAuth: false,
+    logout: async () => {}
 });
 
 export const AuthProvider: FC<AuthContextProps> = ({ children }) => {
-    const { session, user, profileId, loading, isAuth } = useAuth();
+    const { session, user, profileId, loading, isAuth, logout } = useAuth();
 
     return (
         <AuthContext.Provider
@@ -32,7 +34,8 @@ export const AuthProvider: FC<AuthContextProps> = ({ children }) => {
                 user,
                 profileId,
                 loading,
-                isAuth
+                isAuth,
+                logout
             }}
         >
             {children}
